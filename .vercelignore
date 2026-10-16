@@ -1,0 +1,13 @@
+# Secretos y estado local: nunca se suben a Vercel (las variables se configuran en la plataforma).
+.env
+credentials.json
+token.json
+data/manifest.json
+data/*.tmp
+# Entorno y artefactos locales
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+.DS_Store

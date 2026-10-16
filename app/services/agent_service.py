@@ -34,6 +34,9 @@ class AgentService:
                     if getattr(annotation, "type", "") != "file_citation": continue
                     file_id = getattr(annotation, "file_id", "")
                     match = by_openai_id.get(file_id)
+                    # Sin manifest (p. ej. en Vercel): nombre que OpenAI devuelve en la cita, sin enlace.
+                    if not match and getattr(annotation, "filename", ""):
+                        match = {"name": annotation.filename, "url": None}
                     if match and file_id not in known:
                         sources.append({"name": match["name"], "url": match["url"]})
                         known.add(file_id)

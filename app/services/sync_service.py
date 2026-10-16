@@ -61,9 +61,11 @@ class SyncService:
                     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp:
                         temp.write(raw)
                         path = Path(temp.name)
+                    # Nombre real (no el del temporal) para que las citas se entiendan sin el manifest.
+                    upload_name = filename if filename.lower().endswith(suffix) else filename + suffix
                     try:
                         with path.open("rb") as fh:
-                            upload = self.client.vector_stores.files.upload_and_poll(vector_store_id=store, file=fh)
+                            upload = self.client.vector_stores.files.upload_and_poll(vector_store_id=store, file=(upload_name, fh))
                     finally:
                         path.unlink(missing_ok=True)
                     if upload.status != "completed": raise RuntimeError("Indexación no completada: " + upload.status)
