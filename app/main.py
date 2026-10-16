@@ -1,4 +1,5 @@
 """Aplicación académica LOCAL. No desplegar públicamente sin autenticación de usuarios."""
+import hmac
 from pathlib import Path
 from ipaddress import ip_address
 from fastapi import FastAPI, HTTPException, Request, Depends
@@ -24,6 +25,14 @@ def local_only(request: Request):
     if key and request.headers.get("X-Admin-Key") != key:
         raise HTTPException(status_code=401, detail="Clave administrativa incorrecta")
 
+def require_ask_password(request: Request):
+    """Contraseña compartida para consultar; la API key de OpenAI nunca sale del servidor."""
+    expected = settings.ask_password
+    if not expected: return
+    given = request.headers.get("X-Access-Key", "")
+    if not hmac.compare_digest(given.encode(), expected.encode()):
+        raise HTTPException(status_code=401, detail="Contraseña de acceso incorrecta")
+
 @app.get("/")
 def index():
     return FileResponse(ROOT / "index.html")
@@ -39,7 +48,7 @@ def documents():
             "indexed": len(doc.get("documents", {})),
             "vector_store_configured": bool(settings.vector_store_id or doc.get("vector_store_id"))}
 
-@app.post("/api/ask", response_model=AskResponse)
+@app.post("/api/ask", response_model=AskResponse, dependencies=[Depends(require_ask_password)])
 def ask(payload: AskRequest):
     try:
         if not settings.openai_api_key: raise ValueError("Falta OPENAI_API_KEY")

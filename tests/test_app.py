@@ -1,7 +1,15 @@
+from dataclasses import replace
+import pytest
 from fastapi.testclient import TestClient
+import app.main as main
 from app.main import app
 
 client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def no_ask_password(monkeypatch):
+    # Las pruebas no dependen de la contraseña definida en el .env local.
+    monkeypatch.setattr(main, "settings", replace(main.settings, ask_password=""))
 
 def test_home():
     r = client.get("/")
@@ -24,3 +32,8 @@ def test_sync_not_public():
     # FastAPI TestClient IP ficticia no loopback: bloqueado por diseño.
     r = client.post("/api/sync")
     assert r.status_code == 403
+
+def test_ask_requires_password(monkeypatch):
+    monkeypatch.setattr(main, "settings", replace(main.settings, ask_password="secreta"))
+    r = client.post("/api/ask", json={"question": "¿Qué es RAG?"}, headers={"X-Access-Key": "incorrecta"})
+    assert r.status_code == 401
