@@ -93,3 +93,13 @@ class SyncService:
             return {"vector_store_id": store, "stats": stats, "documents": list(docs.values())}
         finally:
             _LOCK.release()
+
+    @staticmethod
+    def remote_documents(store: str, client=None) -> list:
+        """Inventario leído del Vector Store cuando no hay manifiesto (p. ej. en Vercel); sin enlaces de Drive."""
+        client = client or OpenAI(api_key=settings.openai_api_key)
+        docs = []
+        for item in client.vector_stores.files.list(vector_store_id=store, limit=100):
+            if item.status != "completed": continue
+            docs.append({"name": client.files.retrieve(item.id).filename, "url": None})
+        return docs

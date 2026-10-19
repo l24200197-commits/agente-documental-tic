@@ -44,9 +44,15 @@ def health():
 @app.get("/api/documents")
 def documents():
     doc = SyncService.load_manifest()
-    return {"documents": list(doc.get("documents", {}).values()),
-            "indexed": len(doc.get("documents", {})),
-            "vector_store_configured": bool(settings.vector_store_id or doc.get("vector_store_id"))}
+    items = list(doc.get("documents", {}).values())
+    store = settings.vector_store_id or doc.get("vector_store_id")
+    # Sin manifiesto (sistema de archivos efímero en Vercel) se consulta el Vector Store.
+    if not items and store and settings.openai_api_key:
+        try:
+            items = SyncService.remote_documents(store)
+        except Exception:
+            items = []
+    return {"documents": items, "indexed": len(items), "vector_store_configured": bool(store)}
 
 @app.post("/api/ask", response_model=AskResponse, dependencies=[Depends(require_ask_password)])
 def ask(payload: AskRequest):
