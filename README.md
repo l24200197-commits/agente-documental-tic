@@ -101,3 +101,40 @@ OpenAI cobra por el uso de modelos, búsqueda y almacenamiento según su tarifar
 ## Entrega
 
 Repositorio GitHub con historia de commits, URL de Vercel si culminas el reto (o documentación del bloqueo), y conclusiones sobre OAuth, Google Drive API, RAG, File Search, FastAPI, OOP, Git/GitHub y seguridad.
+
+## 10. Reto Vercel: adaptaciones realizadas
+
+**Producción:** <https://agente-documental-tic-rouge.vercel.app> · **Repositorio:** <https://github.com/l24200197-commits/agente-documental-tic>
+
+Se eligió una **arquitectura híbrida**: la sincronización Drive → Vector Store se ejecuta solo en localhost (OAuth Desktop + `token.json`), y Vercel únicamente consulta el Vector Store ya indexado. Así Vercel nunca guarda tokens de Google.
+
+| Problema en Vercel | Adaptación |
+|---|---|
+| Vercel importa `app.py` como módulo `app` y tapa el paquete `app/`. | Punto de entrada `api/index.py` (`from app.main import app`) y `vercel.json` con `rewrites` de todas las rutas hacia la función e `includeFiles` para `index.html`, `assets/` y `app/`. |
+| Sistema de archivos efímero: no existe `data/manifest.json`. | `VECTOR_STORE_ID` como variable de entorno; `/api/documents` lista los archivos del Vector Store si no hay manifiesto; las citas usan el nombre real del archivo subido. |
+| `/api/ask` público consumiría la API Key de cualquiera. | Contraseña compartida `ASK_PASSWORD` (cabecera `X-Access-Key`, comparación con `hmac.compare_digest`). |
+| `/api/sync` requiere OAuth en el navegador del servidor. | Sigue protegido por `local_only`: en Vercel responde 403. |
+| Secretos locales. | `.vercelignore` excluye `.env`, `credentials.json`, `token.json` y `data/manifest.json`. |
+
+**Variables de entorno en Vercel (Production):** `OPENAI_API_KEY`, `OPENAI_MODEL`, `VECTOR_STORE_ID`, `GOOGLE_DRIVE_FOLDER_ID`, `ASK_PASSWORD`. Ninguna aparece en `index.html` ni en `assets/js`; el navegador solo envía la contraseña que escribe el usuario.
+
+**Despliegue:** `vercel --prod` desde la raíz (Vercel CLI). Error encontrado: `ModuleNotFoundError: app.main` por el choque de nombres descrito arriba. Se corrigió con `api/index.py`.
+
+**Puerto local:** en macOS el puerto 5000 lo ocupa el Receptor AirPlay; se usa `PORT=5001` en `.env`.
+
+### OAuth para producción (investigación, no implementado)
+
+El ZIP usa `InstalledAppFlow` (cliente **Desktop**), que abre un navegador en la máquina que ejecuta Python y guarda `token.json` en disco. En serverless no hay navegador ni disco persistente: cada invocación puede iniciar en un contenedor nuevo y perder `token.json` y `manifest.json`. Para sincronizar desde Vercel haría falta:
+
+1. Un cliente OAuth de tipo **Web application** con URI de redirección autorizada (`https://<dominio>/api/oauth/callback`) y el flujo `google_auth_oauthlib.flow.Flow` con parámetro `state` contra CSRF.
+2. **Sesiones** de usuario (cookie firmada `HttpOnly`, `Secure`, `SameSite=Lax`) para saber quién autorizó.
+3. **Almacenamiento persistente y cifrado** del refresh token y del manifiesto (por ejemplo Vercel KV/Upstash Redis, Postgres o Blob), nunca en el sistema de archivos de la función.
+4. Control de acceso por usuario a las carpetas de Drive, cuotas y límites de consumo en `/api/ask`.
+5. Mover la sincronización a una tarea en segundo plano (Vercel Cron o cola), porque la indexación puede superar el tiempo máximo de la función.
+
+Por estas razones el bloqueo se documenta y la sincronización permanece local.
+
+## 11. Evidencias
+
+- Experimentos y comparación sin/con File Search: [docs/EXPERIMENTOS.md](docs/EXPERIMENTOS.md)
+- Conclusiones: [docs/CONCLUSIONES.md](docs/CONCLUSIONES.md)
